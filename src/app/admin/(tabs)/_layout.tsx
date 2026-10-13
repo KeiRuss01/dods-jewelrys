@@ -27,7 +27,10 @@ export default function AdminTabsLayout() {
         options={{
           title: 'Dashboard',
 
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({
+            color,
+            size,
+          }) => (
             <Image
               source={require(
                 '../../../../assets/icons/dashboard.png'
@@ -48,7 +51,10 @@ export default function AdminTabsLayout() {
         options={{
           title: 'Products',
 
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({
+            color,
+            size,
+          }) => (
             <Image
               source={require(
                 '../../../../assets/icons/products.png'
@@ -59,6 +65,56 @@ export default function AdminTabsLayout() {
                 resizeMode: 'contain',
                 tintColor: color,
               }}
+            />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="qr"
+        options={{
+          title: 'QR',
+
+          tabBarIcon: ({
+            color,
+            size,
+          }) => (
+            <Image
+              source={require(
+                '../../../../assets/icons/qr.png'
+              )}
+              style={{
+                width: size,
+                height: size,
+                resizeMode: 'contain',
+                tintColor: color,
+              }}
+            />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="repairs"
+        options={{
+          title: 'Repairs',
+          tabBarIcon: ({ color, size }) => (
+            <Image
+              source={require('../../../../assets/icons/repair.png')}
+              style={{ width: size, height: size, resizeMode: 'contain', tintColor: color }}
+            />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="orders"
+        options={{
+          title: 'Orders',
+          tabBarIcon: ({ color, size }) => (
+            <Image
+              source={require('../../../../assets/icons/orders.png')}
+              style={{ width: size, height: size, resizeMode: 'contain', tintColor: color }}
             />
           ),
         }}

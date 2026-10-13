@@ -15,14 +15,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { signInForRole } from '@/services/auth';
+import { loginAdmin, readableAuthError } from '@/services/auth-service';
 
 export default function AdminLoginScreen() {
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
 
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
 
   async function handleAdminLogin() {
     if (email.trim() === '' || password === '') {
@@ -35,30 +35,10 @@ export default function AdminLoginScreen() {
 
     try {
       setLoading(true);
-
-      const profile = await signInForRole(
-        email.trim().toLowerCase(),
-        password,
-        'admin'
-      );
-
-      Alert.alert(
-        'Login Successful',
-        `Welcome, ${profile.full_name}!`,
-        [
-          {
-            text: 'Continue',
-            onPress: () => router.replace('/admin'),
-          },
-        ]
-      );
+      await loginAdmin(email, password);
+      router.replace('/admin');
     } catch (error) {
-      Alert.alert(
-        'Admin Login Failed',
-        error instanceof Error
-          ? error.message
-          : 'Incorrect administrator credentials.'
-      );
+      Alert.alert('Unable to Log In', readableAuthError(error));
     } finally {
       setLoading(false);
     }

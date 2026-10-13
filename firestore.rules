@@ -1,0 +1,88 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function ownsProfile(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function ownsUserData(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/profiles/$(request.auth.uid))
+        && get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    match /profiles/{userId} {
+      allow create: if ownsProfile(userId)
+        && request.resource.data.role == 'customer'
+        && request.resource.data.email == request.auth.token.email;
+      allow read: if ownsProfile(userId) || isAdmin();
+      allow update: if isAdmin()
+        || (ownsProfile(userId)
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.email == resource.data.email);
+      allow delete: if isAdmin();
+    }
+
+    match /products/{productId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (signedIn()
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['stock_quantity', 'updated_at'])
+          && request.resource.data.stock_quantity is int
+          && request.resource.data.stock_quantity >= 0
+          && request.resource.data.stock_quantity < resource.data.stock_quantity);
+    }
+
+    match /users/{userId}/cart/{itemId} {
+      allow read: if ownsUserData(userId);
+      allow create, update: if ownsUserData(userId)
+        && request.resource.data.product_id is string
+        && request.resource.data.quantity is int
+        && request.resource.data.quantity > 0
+        && request.resource.data.quantity <= 99
+        && (request.resource.data.size == null || request.resource.data.size is string);
+      allow delete: if ownsUserData(userId);
+    }
+
+    match /users/{userId}/addresses/{addressId} {
+      allow read, delete: if ownsUserData(userId);
+      allow create, update: if ownsUserData(userId)
+        && request.resource.data.full_name is string
+        && request.resource.data.phone is string
+        && request.resource.data.street is string
+        && request.resource.data.city is string
+        && request.resource.data.province is string
+        && request.resource.data.postal_code is string
+        && request.resource.data.is_default is bool;
+    }
+
+    match /orders/{orderId} {
+      allow create: if signedIn()
+        && request.resource.data.user_id == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.payment_status == 'unpaid';
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.user_id == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    match /repairs/{repairId} {
+      allow create: if signedIn()
+        && request.resource.data.user_id == request.auth.uid;
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.user_id == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+  }
+}

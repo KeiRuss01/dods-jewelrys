@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { registerCustomer } from '@/services/auth';
+import { readableAuthError, registerCustomer } from '@/services/auth-service';
 
 export default function RegisterScreen() {
   const [fullName, setFullName] = useState<string>('');
@@ -22,7 +22,7 @@ export default function RegisterScreen() {
   const [mobileNumber, setMobileNumber] = useState<string>('');
   const [password, setPassword] = useState<string>('');
 
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
 
   async function handleCreateAccount() {
     if (
@@ -56,31 +56,19 @@ export default function RegisterScreen() {
 
     try {
       setLoading(true);
-
-      const message = await registerCustomer({
-        fullName: fullName.trim(),
-        email: email.trim().toLowerCase(),
-        mobileNumber: mobileNumber.trim(),
-        password,
-      });
-
+      await registerCustomer({ fullName, email, mobileNumber, password });
       Alert.alert(
         'Account Created',
-        message,
+        'Your customer account was created successfully. You can now log in.',
         [
           {
-            text: 'Continue',
+            text: 'Continue to Login',
             onPress: () => router.replace('/login'),
           },
         ]
       );
     } catch (error) {
-      Alert.alert(
-        'Registration Failed',
-        error instanceof Error
-          ? error.message
-          : 'Unable to create your account.'
-      );
+      Alert.alert('Unable to Create Account', readableAuthError(error));
     } finally {
       setLoading(false);
     }

@@ -15,14 +15,18 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { signInForRole } from '@/services/auth';
+import {
+  loginCustomer,
+  readableAuthError,
+  requestPasswordReset,
+} from '@/services/auth-service';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
 
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
 
   async function handleLogin() {
     if (email.trim() === '' || password === '') {
@@ -35,30 +39,10 @@ export default function LoginScreen() {
 
     try {
       setLoading(true);
-
-      const profile = await signInForRole(
-        email.trim().toLowerCase(),
-        password,
-        'customer'
-      );
-
-      Alert.alert(
-        'Login Successful',
-        `Welcome, ${profile.full_name}!`,
-        [
-          {
-            text: 'Continue',
-            onPress: () => router.replace('/customer'),
-          },
-        ]
-      );
+      await loginCustomer(email, password);
+      router.replace('/customer');
     } catch (error) {
-      Alert.alert(
-        'Login Failed',
-        error instanceof Error
-          ? error.message
-          : 'Incorrect email address or password.'
-      );
+      Alert.alert('Unable to Log In', readableAuthError(error));
     } finally {
       setLoading(false);
     }
@@ -68,11 +52,18 @@ export default function LoginScreen() {
     router.push('/register');
   }
 
-  function handleForgotPassword() {
-    Alert.alert(
-      'Forgot Password',
-      'The password recovery screen will be added later.'
-    );
+  async function handleForgotPassword() {
+    if (email.trim() === '') {
+      Alert.alert('Email Required', 'Enter your email address first.');
+      return;
+    }
+
+    try {
+      await requestPasswordReset(email);
+      Alert.alert('Email Sent', 'Check your inbox for the password reset link.');
+    } catch (error) {
+      Alert.alert('Unable to Send Email', readableAuthError(error));
+    }
   }
 
   function handleAdminLogin() {

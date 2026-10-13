@@ -8,6 +8,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -15,7 +16,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { createProduct } from '@/services/products';
+import { logout } from '@/services/auth-service';
+import { createProduct } from '@/services/product-service';
 
 export default function AddProductScreen() {
   const [productName, setProductName] = useState('');
@@ -25,11 +27,41 @@ export default function AddProductScreen() {
   const [price, setPrice] = useState('');
   const [stock, setStock] = useState('');
   const [description, setDescription] = useState('');
+  const [hasSizes, setHasSizes] = useState(false);
+  const [sizesText, setSizesText] = useState('');
   const [productImages, setProductImages] =
-  useState<ImagePicker.ImagePickerAsset[]>(
-    []
-  );
+    useState<ImagePicker.ImagePickerAsset[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  function handleLogout() {
+    Alert.alert(
+      'Log Out',
+      'Are you sure you want to log out?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Log Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await logout();
+              router.replace('/admin-login');
+            } catch (error) {
+              Alert.alert(
+                'Unable to Log Out',
+                error instanceof Error
+                  ? error.message
+                  : 'Please try again.'
+              );
+            }
+          },
+        },
+      ]
+    );
+  }
 
   async function handleChooseImage() {
     if (productImages.length >= 5) {
@@ -41,8 +73,7 @@ export default function AddProductScreen() {
     }
 
     const permission =
-      await ImagePicker
-        .requestMediaLibraryPermissionsAsync();
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permission.granted) {
       Alert.alert(
@@ -52,16 +83,14 @@ export default function AddProductScreen() {
       return;
     }
 
-    const remainingSlots =
-      5 - productImages.length;
+    const remainingSlots = 5 - productImages.length;
 
-    const result =
-      await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsMultipleSelection: true,
-        selectionLimit: remainingSlots,
-        quality: 0.8,
-      });
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: true,
+      selectionLimit: remainingSlots,
+      quality: 0.8,
+    });
 
     if (!result.canceled) {
       setProductImages((currentImages) => [
@@ -73,13 +102,10 @@ export default function AddProductScreen() {
 
   function removeImage(indexToRemove: number) {
     setProductImages((currentImages) =>
-      currentImages.filter(
-        (_, index) =>
-          index !== indexToRemove
-      )
+      currentImages.filter((_, index) => index !== indexToRemove)
     );
   }
-  
+
   async function handleAddProduct() {
     if (
       productName.trim() === '' ||
@@ -120,9 +146,27 @@ export default function AddProductScreen() {
       return;
     }
 
+    const sizes = hasSizes
+      ? Array.from(
+          new Set(
+            sizesText
+              .split(',')
+              .map((size) => size.trim())
+              .filter(Boolean)
+          )
+        )
+      : [];
+
+    if (hasSizes && sizes.length === 0) {
+      Alert.alert(
+        'Sizes Required',
+        'Enter at least one size, e.g. 6, 7, 8.'
+      );
+      return;
+    }
+
     try {
       setIsSubmitting(true);
-
       await createProduct(
         {
           product_name: productName.trim(),
@@ -132,27 +176,18 @@ export default function AddProductScreen() {
           price: priceNumber,
           stock_quantity: stockNumber,
           description: description.trim(),
+          sizes,
         },
         productImages
       );
 
-      Alert.alert(
-        'Product Added',
-        'The product and image were saved successfully.',
-        [
-          {
-            text: 'OK',
-            onPress: () => router.replace('/admin/products'),
-          },
-        ]
-      );
+      Alert.alert('Product Added', 'The product is now available in the shop.', [
+        { text: 'OK', onPress: () => router.back() },
+      ]);
     } catch (error) {
-      console.error('Supabase product creation error:', error);
       Alert.alert(
         'Unable to Add Product',
-        error instanceof Error
-          ? error.message
-          : 'The product could not be saved.'
+        error instanceof Error ? error.message : 'Please try again.'
       );
     } finally {
       setIsSubmitting(false);
@@ -184,11 +219,32 @@ export default function AddProductScreen() {
             <View style={styles.adminArea}>
               <Text style={styles.adminText}>Admin</Text>
 
-              {/* Notification image placeholder */}
-              <View style={styles.iconPlaceholder} />
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() =>
+                  Alert.alert(
+                    'Notifications',
+                    'There are no new notifications.'
+                  )
+                }
+                activeOpacity={0.7}
+              >
+                <Image
+                  source={require('../../../assets/icons/notification.png')}
+                  style={styles.headerIcon}
+                />
+              </TouchableOpacity>
 
-              {/* Logout image placeholder */}
-              <View style={styles.iconPlaceholder} />
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={handleLogout}
+                activeOpacity={0.7}
+              >
+                <Image
+                  source={require('../../../assets/icons/logout.png')}
+                  style={styles.headerIcon}
+                />
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -200,9 +256,7 @@ export default function AddProductScreen() {
             onPress={handleChooseImage}
             activeOpacity={0.8}
           >
-            <Text style={styles.photoLabel}>
-              Product photos
-            </Text>
+            <Text style={styles.photoLabel}>Product photos</Text>
 
             <Text style={styles.uploadText}>
               {productImages.length === 0
@@ -220,9 +274,7 @@ export default function AddProductScreen() {
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={
-                  styles.imagePreviewContainer
-                }
+                contentContainerStyle={styles.imagePreviewContainer}
               >
                 {productImages.map((image, index) => (
                   <View
@@ -236,31 +288,22 @@ export default function AddProductScreen() {
 
                     {index === 0 && (
                       <View style={styles.coverBadge}>
-                        <Text style={styles.coverBadgeText}>
-                          Cover
-                        </Text>
+                        <Text style={styles.coverBadgeText}>Cover</Text>
                       </View>
                     )}
 
                     <TouchableOpacity
                       style={styles.removeImageButton}
-                      onPress={() =>
-                        removeImage(index)
-                      }
+                      onPress={() => removeImage(index)}
                     >
-                      <Text
-                        style={styles.removeImageText}
-                      >
-                        ×
-                      </Text>
+                      <Text style={styles.removeImageText}>×</Text>
                     </TouchableOpacity>
                   </View>
                 ))}
               </ScrollView>
 
               <Text style={styles.coverHint}>
-                The first image will appear on product
-                lists.
+                The first image will appear on product lists.
               </Text>
             </>
           )}
@@ -342,13 +385,34 @@ export default function AddProductScreen() {
           </View>
 
           <View style={styles.fieldRow}>
+            <Text style={styles.label}>Has sizes?</Text>
+
+            <Switch
+              value={hasSizes}
+              onValueChange={setHasSizes}
+              trackColor={{ true: '#C58D24' }}
+            />
+          </View>
+
+          {hasSizes && (
+            <View style={styles.fieldRow}>
+              <Text style={styles.label}>Sizes</Text>
+
+              <TextInput
+                style={styles.input}
+                value={sizesText}
+                onChangeText={setSizesText}
+                placeholder="Example: 6, 7, 8 or S, M, L"
+                placeholderTextColor="#99958F"
+              />
+            </View>
+          )}
+
+          <View style={styles.fieldRow}>
             <Text style={styles.label}>Description</Text>
 
             <TextInput
-              style={[
-                styles.input,
-                styles.descriptionInput,
-              ]}
+              style={[styles.input, styles.descriptionInput]}
               value={description}
               onChangeText={setDescription}
               placeholder="Enter product description"
@@ -565,6 +629,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     color: '#19191B',
     fontSize: 11,
+  },
+
+  iconButton: {
+    padding: 4,
+  },
+
+  headerIcon: {
+    width: 24,
+    height: 24,
+    resizeMode: 'contain',
+    tintColor: '#19191B',
   },
 
   descriptionInput: {

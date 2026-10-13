@@ -63,6 +63,69 @@ export default function CustomerTabsLayout() {
           ),
         }}
       />
+
+      <Tabs.Screen
+        name="repairs"
+        options={{
+          title: 'Repairs',
+
+          tabBarIcon: ({ color, size }) => (
+            <Image
+              source={require(
+                '../../../../assets/icons/repair.png'
+              )}
+              style={{
+                width: size,
+                height: size,
+                resizeMode: 'contain',
+                tintColor: color,
+              }}
+            />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="orders"
+        options={{
+          title: 'Orders',
+
+          tabBarIcon: ({ color, size }) => (
+            <Image
+              source={require(
+                '../../../../assets/icons/orders.png'
+              )}
+              style={{
+                width: size,
+                height: size,
+                resizeMode: 'contain',
+                tintColor: color,
+              }}
+            />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+
+          tabBarIcon: ({ color, size }) => (
+            <Image
+              source={require(
+                '../../../../assets/icons/profile.png'
+              )}
+              style={{
+                width: size,
+                height: size,
+                resizeMode: 'contain',
+                tintColor: color,
+              }}
+            />
+          ),
+        }}
+      />
     </Tabs>
   );
 }

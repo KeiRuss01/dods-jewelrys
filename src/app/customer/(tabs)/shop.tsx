@@ -1,8 +1,6 @@
+import { router } from 'expo-router';
 import {
-  useFocusEffect,
-} from 'expo-router';
-import {
-  useCallback,
+  useEffect,
   useMemo,
   useState,
 } from 'react';
@@ -19,8 +17,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { getProducts } from '@/services/products';
-import type { Product } from '@/types/database';
+import { useUid } from '@/hooks/use-uid';
+import { addToCart } from '@/services/cart-service';
+import { subscribeToProducts } from '@/services/product-service';
+import type { Product } from '@/types/product';
 
 type SortOption =
   | 'Newest'
@@ -28,8 +28,7 @@ type SortOption =
   | 'Highest Price';
 
 export default function CustomerShopScreen() {
-  const [products, setProducts] =
-    useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
 
   const [search, setSearch] =
     useState('');
@@ -40,36 +39,23 @@ export default function CustomerShopScreen() {
   const [sortOption, setSortOption] =
     useState<SortOption>('Newest');
 
-  const [loading, setLoading] =
-    useState(true);
+  const [loading, setLoading] = useState(true);
+  const { uid } = useUid();
 
-  const loadProducts = useCallback(async () => {
-    try {
-      setLoading(true);
+  useEffect(() => {
+    const unsubscribe = subscribeToProducts(
+      (nextProducts) => {
+        setProducts(nextProducts);
+        setLoading(false);
+      },
+      (error) => {
+        setLoading(false);
+        Alert.alert('Unable to Load Products', error.message);
+      }
+    );
 
-      setProducts(await getProducts());
-    } catch (error) {
-      console.error(
-        'Shop loading error:',
-        error
-      );
-
-      Alert.alert(
-        'Unable to Load Products',
-        error instanceof Error
-          ? error.message
-          : 'Could not load products from Supabase.'
-      );
-    } finally {
-      setLoading(false);
-    }
+    return unsubscribe;
   }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadProducts();
-    }, [loadProducts])
-  );
 
   const categories = useMemo(() => {
     const productCategories =
@@ -120,7 +106,7 @@ export default function CustomerShopScreen() {
         return Number(b.price) - Number(a.price);
       }
 
-      return b.product_id - a.product_id;
+      return 0;
     });
   }, [
     products,
@@ -151,21 +137,17 @@ export default function CustomerShopScreen() {
   }
 
   function handleCart() {
-    Alert.alert(
-      'Cart',
-      'The shopping cart will be connected next.'
-    );
+    router.push('/customer/cart');
   }
 
   function handleProduct(product: Product) {
-    Alert.alert(
-      product.product_name,
-      product.description ||
-        'Product details will be added later.'
-    );
+    router.push({
+      pathname: '/customer/details',
+      params: { id: product.product_id },
+    });
   }
 
-  function handleAddToCart(product: Product) {
+  async function handleAddToCart(product: Product) {
     if (product.stock_quantity <= 0) {
       Alert.alert(
         'Out of Stock',
@@ -174,10 +156,26 @@ export default function CustomerShopScreen() {
       return;
     }
 
-    Alert.alert(
-      'Cart',
-      `${product.product_name} will be added after the cart database is created.`
-    );
+    // Sized items need a size first, so send them to the details screen
+    if (product.sizes.length > 0) {
+      handleProduct(product);
+      return;
+    }
+
+    if (!uid) {
+      Alert.alert('Please Sign In', 'Sign in to add items to your cart.');
+      return;
+    }
+
+    try {
+      await addToCart(uid, product, null, 1);
+      Alert.alert('Added to Cart', `${product.product_name} was added to your cart.`);
+    } catch (error) {
+      Alert.alert(
+        'Unable to Add to Cart',
+        error instanceof Error ? error.message : 'Please try again.'
+      );
+    }
   }
 
   return (

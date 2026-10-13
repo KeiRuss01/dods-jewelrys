@@ -1,11 +1,5 @@
-import {
-  router,
-  useFocusEffect,
-} from 'expo-router';
-import {
-  useCallback,
-  useState,
-} from 'react';
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -22,13 +16,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { signOut } from '@/services/auth';
+import { AdminHeader } from '@/components/admin-header';
 import {
-  archiveProduct,
-  getProducts,
+  deleteProduct,
+  subscribeToProducts,
   updateProduct,
-} from '@/services/products';
-import type { Product } from '@/types/database';
+} from '@/services/product-service';
+import type { Product } from '@/types/product';
 
 type EditForm = {
   productName: string;
@@ -57,11 +51,10 @@ export default function AdminProductsScreen() {
   const [search, setSearch] =
     useState('');
 
-  const [loading, setLoading] =
-    useState(true);
+  const [loading, setLoading] = useState(true);
 
   const [editingProductId, setEditingProductId] =
-    useState<number | null>(null);
+    useState<string | null>(null);
 
   const [editForm, setEditForm] =
     useState<EditForm>(emptyEditForm);
@@ -70,35 +63,23 @@ export default function AdminProductsScreen() {
     useState(false);
 
   const [deletingId, setDeletingId] =
-    useState<number | null>(null);
+    useState<string | null>(null);
 
-  const loadProducts = useCallback(async () => {
-    try {
-      setLoading(true);
+  useEffect(() => {
+    const unsubscribe = subscribeToProducts(
+      (nextProducts) => {
+        setProducts(nextProducts);
+        setLoading(false);
+      },
+      (error) => {
+        setLoading(false);
+        Alert.alert('Unable to Load Products', error.message);
+      },
+      true
+    );
 
-      setProducts(await getProducts());
-    } catch (error) {
-      console.error(
-        'Products loading error:',
-        error
-      );
-
-      Alert.alert(
-        'Unable to Load Products',
-        error instanceof Error
-          ? error.message
-          : 'Could not load products from Supabase.'
-      );
-    } finally {
-      setLoading(false);
-    }
+    return unsubscribe;
   }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadProducts();
-    }, [loadProducts])
-  );
 
   const filteredProducts =
     products.filter((product) => {
@@ -114,36 +95,6 @@ export default function AdminProductsScreen() {
           .includes(searchText)
       );
     });
-
-  function handleNotifications() {
-    Alert.alert(
-      'Notifications',
-      'Notifications will be added later.'
-    );
-  }
-
-  function handleLogout() {
-    Alert.alert(
-      'Log Out',
-      'Are you sure you want to log out?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Log Out',
-          onPress: async () => {
-            try {
-              await signOut();
-            } finally {
-              router.replace('/admin-login');
-            }
-          },
-        },
-      ]
-    );
-  }
 
   function openEditModal(product: Product) {
     setEditingProductId(
@@ -225,7 +176,6 @@ export default function AdminProductsScreen() {
 
     try {
       setSaving(true);
-
       await updateProduct(editingProductId, {
         product_name: editForm.productName.trim(),
         category: editForm.category.trim(),
@@ -234,28 +184,17 @@ export default function AdminProductsScreen() {
         price: priceNumber,
         stock_quantity: stockNumber,
         description: editForm.description.trim(),
+        sizes:
+          products.find((product) => product.product_id === editingProductId)
+            ?.sizes ?? [],
       });
-
       setEditingProductId(null);
       setEditForm(emptyEditForm);
-
-      await loadProducts();
-
-      Alert.alert(
-        'Product Updated',
-        'The product was updated successfully.'
-      );
+      Alert.alert('Product Updated', 'Your changes were saved.');
     } catch (error) {
-      console.error(
-        'Product update error:',
-        error
-      );
-
       Alert.alert(
-        'Unable to Update',
-        error instanceof Error
-          ? error.message
-          : 'Could not update product.'
+        'Unable to Update Product',
+        error instanceof Error ? error.message : 'Please try again.'
       );
     } finally {
       setSaving(false);
@@ -278,44 +217,22 @@ export default function AdminProductsScreen() {
           style: 'destructive',
           onPress: () =>
             handleDeleteProduct(
-              product.product_id
+              product
             ),
         },
       ]
     );
   }
 
-  async function handleDeleteProduct(
-    productId: number
-  ) {
+  async function handleDeleteProduct(product: Product) {
     try {
-      setDeletingId(productId);
-
-      await archiveProduct(productId);
-
-      setProducts((currentProducts) =>
-        currentProducts.filter(
-          (product) =>
-            product.product_id !==
-            productId
-        )
-      );
-
-      Alert.alert(
-        'Product Deleted',
-        'The product was removed successfully.'
-      );
+      setDeletingId(product.product_id);
+      await deleteProduct(product);
+      Alert.alert('Product Deleted', 'The product was removed from the shop.');
     } catch (error) {
-      console.error(
-        'Product deletion error:',
-        error
-      );
-
       Alert.alert(
-        'Unable to Delete',
-        error instanceof Error
-          ? error.message
-          : 'Could not delete product.'
+        'Unable to Delete Product',
+        error instanceof Error ? error.message : 'Please try again.'
       );
     } finally {
       setDeletingId(null);
@@ -332,45 +249,7 @@ export default function AdminProductsScreen() {
           false
         }
       >
-        <View style={styles.topHeader}>
-          <Text style={styles.pageLabel}>
-            Product
-          </Text>
-
-          <View style={styles.adminArea}>
-            <Text style={styles.adminText}>
-              Admin
-            </Text>
-
-            <TouchableOpacity
-              style={styles.iconButton}
-              onPress={
-                handleNotifications
-              }
-              activeOpacity={0.7}
-            >
-              <Image
-                source={require(
-                  '../../../../assets/icons/notification.png'
-                )}
-                style={styles.headerIcon}
-              />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.iconButton}
-              onPress={handleLogout}
-              activeOpacity={0.7}
-            >
-              <Image
-                source={require(
-                  '../../../../assets/icons/logout.png'
-                )}
-                style={styles.headerIcon}
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
+        <AdminHeader />
 
         <Text style={styles.title}>
           Products

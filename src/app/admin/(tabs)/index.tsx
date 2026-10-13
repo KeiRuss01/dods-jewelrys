@@ -1,14 +1,7 @@
-import {
-  router,
-  useFocusEffect,
-} from 'expo-router';
-import {
-  useCallback,
-  useState,
-} from 'react';
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
   Alert,
-  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,130 +10,64 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { signOut } from '@/services/auth';
+import { AdminHeader } from '@/components/admin-header';
 import {
-  getDashboardStats,
-  type DashboardSources,
+  type DashboardActivity,
   type DashboardStats,
-} from '@/services/dashboard';
+  subscribeToDashboard,
+} from '@/services/dashboard-service';
 
 const defaultStats: DashboardStats = {
-  orders: 24,
-  repairs: 8,
-  products: 50,
-  customers: 186,
-  low_stock: 4,
+  orders: 0,
+  active_orders: 0,
+  repairs: 0,
+  awaiting_repairs: 0,
+  ready_for_release: 0,
+  products: 0,
+  customers: 0,
+  low_stock: 0,
+  activities: [],
 };
-
-const defaultSources: DashboardSources = {
-  orders: 'default',
-  repairs: 'default',
-  products: 'default',
-  customers: 'default',
-};
-
-const defaultActivities = [
-  {
-    title: 'Order #ORD-2026-015',
-    description: 'Pearl Necklace',
-    time: 'Today · 2:14 PM',
-  },
-  {
-    title: 'Repair #REP-2026-001',
-    description: 'Gold Ring · In Progress',
-    time: 'Today · 11:42 AM',
-  },
-  {
-    title: 'New customer',
-    description: 'Maria Santos',
-    time: 'Yesterday · 4:20 PM',
-  },
-];
 
 export default function AdminDashboardScreen() {
-  const [stats, setStats] =
-    useState<DashboardStats>(defaultStats);
+  const [stats, setStats] = useState(defaultStats);
 
-  const [sources, setSources] =
-    useState<DashboardSources>(defaultSources);
-
-  const loadDashboard = useCallback(async () => {
-    try {
-      const result = await getDashboardStats();
-
-      setStats(result.stats);
-      setSources(result.sources);
-    } catch (error) {
-      console.error(
-        'Dashboard loading error:',
-        error
-      );
-
-      // Keep the original default data if loading fails.
-      setStats(defaultStats);
-      setSources(defaultSources);
-    }
+  useEffect(() => {
+    return subscribeToDashboard(
+      setStats,
+      (error) => Alert.alert('Unable to Load Dashboard', error.message)
+    );
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadDashboard();
-    }, [loadDashboard])
-  );
+  function showNotifications() {
+    const alerts = [
+      stats.low_stock > 0 ? `${stats.low_stock} low-stock product${stats.low_stock === 1 ? '' : 's'}` : '',
+      stats.awaiting_repairs > 0 ? `${stats.awaiting_repairs} repair${stats.awaiting_repairs === 1 ? '' : 's'} awaiting work` : '',
+      stats.ready_for_release > 0 ? `${stats.ready_for_release} repair${stats.ready_for_release === 1 ? '' : 's'} ready for release` : '',
+      stats.active_orders > 0 ? `${stats.active_orders} active order${stats.active_orders === 1 ? '' : 's'}` : '',
+    ].filter(Boolean);
 
-  const activities = [
-    ...defaultActivities,
-    {
-      title: 'Low stock alert',
-      description:
-        stats.low_stock === 1
-          ? '1 product is low in stock'
-          : `${stats.low_stock} products are low in stock`,
-      time:
-        sources.products === 'database'
-          ? 'Inventory'
-          : 'Temporary',
-    },
-  ];
-
-  function handleLogout() {
     Alert.alert(
-      'Log Out',
-      'Are you sure you want to log out?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Log Out',
-          onPress: async () => {
-            try {
-              await signOut();
-            } finally {
-              router.replace('/admin-login');
-            }
-          },
-        },
-      ]
+      'Operational Notifications',
+      alerts.length ? alerts.map((item) => `• ${item}`).join('\n') : 'There are no operational alerts.'
     );
   }
 
-  function showComingSoon(feature: string) {
-    Alert.alert(
-      feature,
-      `${feature} will be added later.`
-    );
+  function openActivity(activity: DashboardActivity) {
+    router.push({
+      pathname: activity.kind === 'order' ? '/admin/orders/[id]' : '/admin/repairs/[id]',
+      params: { id: activity.id },
+    });
   }
 
-  function getDataDescription(
-    source: 'database' | 'default',
-    databaseText: string,
-    defaultText: string
-  ) {
-    return source === 'database'
-      ? databaseText
-      : defaultText;
+  function activityTime(date: Date) {
+    if (!date.getTime()) return 'Recently';
+    const minutes = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60000));
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
   }
 
   return (
@@ -149,39 +76,7 @@ export default function AdminDashboardScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-      <View style={styles.topHeader}>
-        <Text style={styles.adminText}>
-          Admin
-        </Text>
-
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={() =>
-            showComingSoon('Notifications')
-          }
-          activeOpacity={0.7}
-        >
-          <Image
-            source={require(
-              '../../../../assets/icons/notification.png'
-            )}
-            style={styles.headerIcon}
-          />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={handleLogout}
-          activeOpacity={0.7}
-        >
-          <Image
-            source={require(
-              '../../../../assets/icons/logout.png'
-            )}
-            style={styles.headerIcon}
-          />
-        </TouchableOpacity>
-      </View>
+        <AdminHeader onNotifications={showNotifications} />
 
         <Text style={styles.title}>
           Dashboard
@@ -192,7 +87,11 @@ export default function AdminDashboardScreen() {
         </Text>
 
         <View style={styles.summaryGrid}>
-          <View style={styles.summaryCard}>
+          <TouchableOpacity
+            style={styles.summaryCard}
+            activeOpacity={0.8}
+            onPress={() => router.push('/admin/orders/index')}
+          >
             <Text style={styles.summaryLabel}>
               Orders
             </Text>
@@ -202,15 +101,15 @@ export default function AdminDashboardScreen() {
             </Text>
 
             <Text style={styles.summaryDescription}>
-              {getDataDescription(
-                sources.orders,
-                'Saved orders',
-                '+12% this month'
-              )}
+              {stats.active_orders} active
             </Text>
-          </View>
+          </TouchableOpacity>
 
-          <View style={styles.summaryCard}>
+          <TouchableOpacity
+            style={styles.summaryCard}
+            activeOpacity={0.8}
+            onPress={() => router.push('/admin/repairs/index')}
+          >
             <Text style={styles.summaryLabel}>
               Repairs
             </Text>
@@ -220,13 +119,9 @@ export default function AdminDashboardScreen() {
             </Text>
 
             <Text style={styles.summaryDescription}>
-              {getDataDescription(
-                sources.repairs,
-                'Saved repairs',
-                '3 awaiting action'
-              )}
+              {stats.awaiting_repairs} awaiting action
             </Text>
-          </View>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.summaryCard}
@@ -248,7 +143,11 @@ export default function AdminDashboardScreen() {
             </Text>
           </TouchableOpacity>
 
-          <View style={styles.summaryCard}>
+          <TouchableOpacity
+            style={styles.summaryCard}
+            activeOpacity={0.8}
+            onPress={() => router.push('/admin/customers')}
+          >
             <Text style={styles.summaryLabel}>
               Customers
             </Text>
@@ -258,13 +157,9 @@ export default function AdminDashboardScreen() {
             </Text>
 
             <Text style={styles.summaryDescription}>
-              {getDataDescription(
-                sources.customers,
-                'Registered customers',
-                '+9 this week'
-              )}
+              Registered accounts
             </Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.sectionTitle}>
@@ -285,9 +180,7 @@ export default function AdminDashboardScreen() {
 
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() =>
-              showComingSoon('Manage Repairs')
-            }
+            onPress={() => router.push('/admin/repairs/index')}
           >
             <Text style={styles.actionText}>
               Manage Repairs
@@ -296,9 +189,7 @@ export default function AdminDashboardScreen() {
 
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() =>
-              showComingSoon('View Orders')
-            }
+            onPress={() => router.push('/admin/orders/index')}
           >
             <Text style={styles.actionText}>
               View Orders
@@ -307,9 +198,7 @@ export default function AdminDashboardScreen() {
 
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() =>
-              showComingSoon('Customers')
-            }
+            onPress={() => router.push('/admin/customers')}
           >
             <Text style={styles.actionText}>
               Customers
@@ -322,9 +211,15 @@ export default function AdminDashboardScreen() {
         </Text>
 
         <View style={styles.activityCard}>
-          {activities.map((activity, index) => (
-            <View key={index}>
-              <View style={styles.activityRow}>
+          {stats.activities.length === 0 ? (
+            <Text style={styles.emptyActivity}>No order or repair activity yet.</Text>
+          ) : stats.activities.map((activity, index) => (
+            <View key={`${activity.kind}-${activity.id}`}>
+              <TouchableOpacity
+                style={styles.activityRow}
+                activeOpacity={0.7}
+                onPress={() => openActivity(activity)}
+              >
                 <View
                   style={
                     styles.activityInformation
@@ -346,12 +241,12 @@ export default function AdminDashboardScreen() {
                 </View>
 
                 <Text style={styles.activityTime}>
-                  {activity.time}
+                  {activityTime(activity.created_at)}
                 </Text>
-              </View>
+              </TouchableOpacity>
 
               {index <
-                activities.length - 1 && (
+                stats.activities.length - 1 && (
                 <View
                   style={styles.activityDivider}
                 />
@@ -524,5 +419,12 @@ const styles = StyleSheet.create({
   activityDivider: {
     height: 1,
     backgroundColor: '#E8E3DA',
+  },
+
+  emptyActivity: {
+    color: '#77736D',
+    fontSize: 10,
+    textAlign: 'center',
+    paddingVertical: 18,
   },
 });

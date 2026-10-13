@@ -17,7 +17,9 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [],
+      "package": "com.keithruss.dodsjewelry"
     },
     "web": {
       "output": "static",
@@ -26,6 +28,14 @@
     "plugins": [
       "expo-router",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow DOD's Jewelry to scan repair claim QR codes.",
+          "barcodeScannerEnabled": true,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#208AEF",
@@ -33,13 +43,27 @@
           "imageWidth": 76
         }
       ],
-      "expo-sqlite",
       "expo-image",
-      "expo-web-browser"
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow DOD's Jewelry to select product photos.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      "expo-web-browser",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b69b2083-1fdf-45e1-a520-08045e4da82f"
+      }
     }
   }
 }
